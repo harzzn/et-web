@@ -223,13 +223,19 @@
     margin-top: auto;
     padding-top: 6vh;
     text-align: center;
-    font-size: 12px;
-    line-height: 1.8;
-    color: #6a6557;
-    max-width: 640px;
+    font-size: 13.5px;
+    line-height: 1.9;
+    color: var(--paper-dim);
+    max-width: 680px;
     animation: rise .7s .45s ease-out both;
   }
-  footer a { color: var(--paper-dim); }
+  footer a {
+    color: var(--paper);
+    text-decoration-color: var(--signal-dim);
+    text-underline-offset: 3px;
+    transition: color .15s;
+  }
+  footer a:hover { color: var(--signal); }
 
   @keyframes rise {
     from { opacity: 0; transform: translateY(18px); }
