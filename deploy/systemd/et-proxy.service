@@ -1,0 +1,14 @@
+[Unit]
+Description=WebSocket to UDP proxy for ET:Legacy web clients
+After=network.target etlded.service
+
+[Service]
+Type=simple
+User=etweb
+ExecStart=/usr/bin/node /opt/et-web/proxy/proxy.js --host 127.0.0.1 --listen 27970 --target 127.0.0.1:27960
+Restart=always
+RestartSec=3
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

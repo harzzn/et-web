@@ -28,9 +28,10 @@ ln -sf "$BUILD/legacy/qagame.mp.wasm32.wasm" "$WEB/files/legacy/qagame.mp.wasm32
   first=1
   for f in "$WEB"/files/etmain/*.pk3 "$WEB"/files/legacy/*.pk3 "$WEB"/files/legacy/*.wasm; do
     rel="${f#"$WEB/files/"}"
+    size=$(stat -Lf%z "$f" 2>/dev/null || stat -Lc%s "$f")
     [ $first -eq 1 ] || echo ','
     first=0
-    printf '  { "path": "%s", "url": "files/%s" }' "$rel" "$rel"
+    printf '  { "path": "%s", "url": "files/%s", "size": %s }' "$rel" "$rel" "$size"
   done
   echo ''
   echo '] }'

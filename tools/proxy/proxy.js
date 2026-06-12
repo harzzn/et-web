@@ -16,15 +16,16 @@ function argVal(name, def) {
 }
 
 const LISTEN = Number(argVal('listen', 27970));
+const HOST = argVal('host', '0.0.0.0');
 const [TARGET_HOST, TARGET_PORT_S] = argVal('target', '127.0.0.1:27960').split(':');
 const TARGET_PORT = Number(TARGET_PORT_S);
 const MAX_CLIENTS = 64;
 const IDLE_MS = 5 * 60 * 1000;
 
-const wss = new WebSocketServer({ port: LISTEN });
+const wss = new WebSocketServer({ host: HOST, port: LISTEN });
 let clients = 0;
 
-console.log(`ws-udp proxy: ws://0.0.0.0:${LISTEN} -> udp ${TARGET_HOST}:${TARGET_PORT}`);
+console.log(`ws-udp proxy: ws://${HOST}:${LISTEN} -> udp ${TARGET_HOST}:${TARGET_PORT}`);
 
 wss.on('connection', (ws, req) => {
   if (clients >= MAX_CLIENTS) {

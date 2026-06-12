@@ -21,7 +21,13 @@ const SECS = Number(process.env.ET_SECS || 90);
   const t0 = Date.now();
   let lastStatus = '';
   let keysSent = false;
+  let reloaded = false;
   while (Date.now() - t0 < SECS * 1000) {
+    if (!reloaded && process.env.ET_RELOAD && Date.now() - t0 > Number(process.env.ET_RELOAD) * 1000) {
+      reloaded = true;
+      console.log('[harness] reloading page');
+      await page.reload({ waitUntil: 'domcontentloaded' });
+    }
     await new Promise((r) => setTimeout(r, 2000));
     const status = await page.$eval('#status', (el) => el.textContent).catch(() => '?');
     if (status !== lastStatus) {

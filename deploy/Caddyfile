@@ -1,0 +1,24 @@
+# Caddy config for the ET:Legacy web port.
+# Replace play.example.com with your domain; Caddy handles TLS automatically.
+
+play.example.com {
+	# WebSocket tunnel -> ws<->udp proxy (the client defaults to
+	# wss://<host>/net on https pages, see net_web_tunnel.c)
+	handle /net {
+		reverse_proxy 127.0.0.1:27970
+	}
+
+	# static web client + game data
+	handle {
+		root * /opt/et-web/web
+		file_server
+		encode zstd gzip
+
+		# pk3s and wasm are immutable-ish and huge: cache hard.
+		# (manifest.json carries sizes; boot.js re-fetches on mismatch)
+		@bigfiles path *.pk3 *.wasm
+		header @bigfiles Cache-Control "public, max-age=604800"
+		header /manifest.json Cache-Control "no-cache"
+		header /etl.js Cache-Control "no-cache"
+	}
+}

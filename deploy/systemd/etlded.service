@@ -1,0 +1,28 @@
+[Unit]
+Description=ET:Legacy dedicated server (web port)
+After=network.target
+
+[Service]
+Type=simple
+User=etweb
+WorkingDirectory=/opt/et-web/server
+ExecStart=/opt/et-web/server/etlded \
+  +set fs_basepath /opt/et-web/server \
+  +set fs_homepath /opt/et-web/server/home \
+  +set fs_game legacy \
+  +set dedicated 2 \
+  +set net_port 27960 \
+  +set sv_pure 0 \
+  +set sv_allowDownload 0 \
+  +set sv_hostname "^1ET ^7Web ^1//^7 play in your browser" \
+  +set g_doWarmup 1 \
+  +exec server.cfg \
+  +map radar
+Restart=always
+RestartSec=5
+# the engine is single threaded; keep it tame
+CPUWeight=200
+MemoryMax=2G
+
+[Install]
+WantedBy=multi-user.target
