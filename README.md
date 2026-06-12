@@ -1,11 +1,14 @@
 # ET: Legacy — Web Port
 
 Wolfenstein: Enemy Territory (via ET: Legacy) compiled to WebAssembly,
-running in the browser. **Status: Phase 2 core complete** — the in-browser
-local listen server hosts maps (qagame/cgame/ui all run as wasm side
-modules); the 3D world renders (verified on radar), keyboard/mouse input
-reaches the engine, SDL audio initializes. Test a map directly:
-`http://localhost:8666/?args=%2Bset%20sv_pure%200%20%2Bdevmap%20radar`
+running in the browser. **Status: Phase 3 milestone reached** — the browser
+client connects to a NATIVE dedicated server (etlded) through a
+WebSocket↔UDP proxy: full handshake, gamestate, ClientBegin, live snapshot
+rendering. Also working: in-browser local listen server (Phase 2), menu +
+profile UI (Phase 1).
+
+Quick start: `./scripts/run-stack.sh radar` then open
+`http://localhost:8666/?args=%2Bconnect%20127.0.0.1%3A27960`
 
 ## Layout
 
@@ -89,11 +92,24 @@ cd tools/headless && ET_SECS=40 node boot-test.js   # screenshot at /tmp/etweb-s
 - **FS**: paks fetched by `boot.js` into MEMFS under `/et`; `fs_homepath`
   `/et/home`. IDBFS/OPFS persistence is still TODO.
 
-## Next (Phase 3+)
+## Networking (Phase 3)
 
-- Interactive playtest: join team via limbo, pointer-lock mouselook feel
-- Networking: WebSocket→UDP proxy + native etlded (Phase 3)
+- `src/sys/net_web_tunnel.c`: every outgoing engine datagram = one binary
+  WS message to the proxy; incoming messages dispatched via the normal
+  packet path from `NET_Sleep`. Single-tunnel model: incoming packets are
+  attributed to the last send destination, the proxy owns real addressing.
+  `net_wsUrl` cvar overrides the default `ws://<page-host>:27970`.
+- `tools/proxy/proxy.js`: one UDP socket per WS client, fixed UDP target
+  (no open relay), idle timeout, client cap. Colocate with etlded.
+- Native server: `build/native-server/etlded`, runtime dir `server/`
+  (NB: pk3s must be hardlinks/copies — the engine skips symlinked pk3s).
+
+## Next
+
+- Interactive online playtest; join team, latency feel via proxy
+- WebTransport upgrade beneath the same tunnel API (WS stays as fallback)
+- Server browser / multi-target addressing in tunnel frame format
 - Persistence: IDBFS or OPFS for /et/home + pak cache (currently re-downloads)
 - Perf pass: in-map r_speeds, SIMD build, lazy per-map paks
-- Cosmetics: 5 benign generateMipmap/texParameter warnings at renderer init;
-  'sound system is muted' until window focus
+- Cosmetics: benign generateMipmap/texParameter warnings at init;
+  'sound muted' until focus; 'unknown cmd vdr' from server
