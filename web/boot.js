@@ -56,13 +56,10 @@ var Module = {
     '+set', 'r_customwidth', '1280',
     '+set', 'r_customheight', '720',
     '+set', 'r_allowsoftwaregl', '1',
-    '+set', 's_initsound', '0',
     '+set', 'com_introplayed', '1',  // skip intro cinematic
     '+set', 'r_ext_compiled_vertex_array', '0',
     '+set', 'r_fbo', '0',
-    '+set', 'r_textureMode', 'GL_LINEAR',
-    '+set', 'r_speeds', '1',
-  ],
+  ].concat((new URLSearchParams(location.search).get('args') || '').split(' ').filter(Boolean)),
   print: (t) => { console.log(t); logLine(t, false); },
   printErr: (t) => { console.error(t); logLine(t, true); },
 

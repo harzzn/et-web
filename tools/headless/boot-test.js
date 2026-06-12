@@ -20,6 +20,7 @@ const SECS = Number(process.env.ET_SECS || 90);
   await page.goto(URL, { waitUntil: 'domcontentloaded' });
   const t0 = Date.now();
   let lastStatus = '';
+  let keysSent = false;
   while (Date.now() - t0 < SECS * 1000) {
     await new Promise((r) => setTimeout(r, 2000));
     const status = await page.$eval('#status', (el) => el.textContent).catch(() => '?');
@@ -28,6 +29,15 @@ const SECS = Number(process.env.ET_SECS || 90);
       lastStatus = status;
     }
     if (status.startsWith('FAILED')) break;
+    if (!keysSent && process.env.ET_PRESS_ESC && Date.now() - t0 > Number(process.env.ET_PRESS_ESC) * 1000) {
+      keysSent = true;
+      await page.click('#canvas').catch(() => {});
+      await page.keyboard.press('Escape');
+      console.log('[harness] sent Escape');
+      await new Promise((r) => setTimeout(r, 3000));
+      await page.mouse.click(640, 380);
+      console.log('[harness] clicked canvas (follow)');
+    }
     if ((Date.now() - t0) % 20000 < 2200) {
       await page.screenshot({ path: `/tmp/etweb-${Math.round((Date.now()-t0)/1000)}s.png` }).catch((e) => console.log('[shot] ' + e.message));
     }
