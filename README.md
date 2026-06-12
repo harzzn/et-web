@@ -1,9 +1,11 @@
 # ET: Legacy — Web Port
 
 Wolfenstein: Enemy Territory (via ET: Legacy) compiled to WebAssembly,
-running in the browser. **Status: Phase 1 complete** — the engine boots to
-the main menu (profile creation screen) in Chrome with game paks fetched
-over HTTP. See the handover doc for the full plan.
+running in the browser. **Status: Phase 2 core complete** — the in-browser
+local listen server hosts maps (qagame/cgame/ui all run as wasm side
+modules); the 3D world renders (verified on radar), keyboard/mouse input
+reaches the engine, SDL audio initializes. Test a map directly:
+`http://localhost:8666/?args=%2Bset%20sv_pure%200%20%2Bdevmap%20radar`
 
 ## Layout
 
@@ -87,11 +89,11 @@ cd tools/headless && ET_SECS=40 node boot-test.js   # screenshot at /tmp/etweb-s
 - **FS**: paks fetched by `boot.js` into MEMFS under `/et`; `fs_homepath`
   `/et/home`. IDBFS/OPFS persistence is still TODO.
 
-## Next (Phase 2+)
+## Next (Phase 3+)
 
-- Input: pointer lock verification, key handling in-game
-- Audio: enable (SDL audio or OpenAL), `s_initsound 1`
-- Local play: spawn into a map (needs cgame path exercised, BSP rendering)
+- Interactive playtest: join team via limbo, pointer-lock mouselook feel
 - Networking: WebSocket→UDP proxy + native etlded (Phase 3)
-- Persistence: IDBFS or OPFS for /et/home + pak cache
-- Perf: r_speeds in-map, SIMD build, lazy per-map paks
+- Persistence: IDBFS or OPFS for /et/home + pak cache (currently re-downloads)
+- Perf pass: in-map r_speeds, SIMD build, lazy per-map paks
+- Cosmetics: 5 benign generateMipmap/texParameter warnings at renderer init;
+  'sound system is muted' until window focus
