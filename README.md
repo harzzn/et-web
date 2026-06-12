@@ -10,6 +10,24 @@ profile UI (Phase 1).
 Quick start: `./scripts/run-stack.sh radar` then open
 `http://localhost:8666/?args=%2Bconnect%20127.0.0.1%3A27960`
 
+## Source & licensing
+
+- Engine: [ET: Legacy](https://www.etlegacy.com) fork, branch `web` —
+  [github.com/harzzn/etlegacy](https://github.com/harzzn/etlegacy/tree/web).
+  **GPLv3** (id Software's 2010 source release + id's additional terms).
+  Serving `etl.wasm` is conveying a GPL binary: these repos ARE the
+  corresponding source offer. Keep them public and in sync with deploys.
+- GL translation: [gl4es](https://github.com/ptitSeb/gl4es) fork, branch
+  `etweb` — [github.com/harzzn/gl4es](https://github.com/harzzn/gl4es/tree/etweb) (MIT).
+- This repo (shell, proxy, deploy tooling): GPLv3 to match.
+- Game data (`pak0.pk3` etc.) is NOT included and NOT GPL: it remains the
+  property of id Software / ZeniMax / Microsoft, distributed free of charge
+  since 2003 under the W:ET EULA (non-commercial redistribution of intact
+  data is long-established community practice). Fetch from
+  `mirror.etlegacy.com/etmain/` into `assets/etmain/`.
+- Non-commercial fan project; not affiliated with Splash Damage, id
+  Software, ZeniMax or Microsoft.
+
 ## Layout
 
 | Path | What |
