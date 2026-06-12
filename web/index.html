@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ET: Legacy — Web</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #1a1a1a; color: #ddd;
+               font-family: monospace; height: 100%; overflow: hidden; }
+  #wrap { display: flex; flex-direction: column; height: 100%; }
+  #canvas { display: block; margin: 0 auto; background: #000; flex: 0 0 auto; }
+  #status { padding: 6px 10px; color: #9c9; white-space: pre; }
+  #log { flex: 1 1 auto; overflow-y: auto; padding: 4px 10px; font-size: 11px;
+         color: #888; border-top: 1px solid #333; }
+  #log .err { color: #e66; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="status">loading…</div>
+  <canvas id="canvas" width="1280" height="720" tabindex="-1"
+          oncontextmenu="event.preventDefault()"></canvas>
+  <div id="log"></div>
+</div>
+<script src="boot.js"></script>
+<script src="etl.js"></script>
+</body>
+</html>

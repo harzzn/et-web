@@ -1,0 +1,114 @@
+diff --git a/src/gl/buffers.c b/src/gl/buffers.c
+index 4ea062c..8b82480 100644
+--- a/src/gl/buffers.c
++++ b/src/gl/buffers.c
+@@ -698,16 +698,24 @@ void bindBuffer(GLenum target, GLuint buffer)
+ {
+     LOAD_GLES(glBindBuffer);
+     if(target==GL_ARRAY_BUFFER) {
++#ifndef __EMSCRIPTEN__
++        // On Emscripten the binding tracked by the GL JS library can diverge
++        // from this cache (FULL_ES2 emulation rebinds behind gl4es' back and
++        // the browser context survives a video restart while glstate is
++        // recreated), so the real call must always be issued.
+         if(glstate->bind_buffer.array == buffer)
+             return;
++#endif
+         DBG(printf("Bind buffer %d to GL_ARRAY_BUFFER\n", buffer);)
+         glstate->bind_buffer.array = buffer;
+         gles_glBindBuffer(target, buffer);
+-        
++
+     } else if (target==GL_ELEMENT_ARRAY_BUFFER) {
+         glstate->bind_buffer.want_index = buffer;
++#ifndef __EMSCRIPTEN__
+         if(glstate->bind_buffer.index == buffer)
+             return;
++#endif
+         glstate->bind_buffer.index = buffer;
+         DBG(printf("Bind buffer %d to GL_ELEMENT_ARRAY_BUFFER\n", buffer);)
+         gles_glBindBuffer(target, buffer);
+diff --git a/src/gl/fpe.c b/src/gl/fpe.c
+index 7d53643..dc920c1 100644
+--- a/src/gl/fpe.c
++++ b/src/gl/fpe.c
+@@ -1457,10 +1457,18 @@ void realize_glenv(int ispoint, int first, int count, GLenum type, const void* i
+         if(v->enabled) {
+             // array case
+             void * ptr = (void*)((uintptr_t)w->pointer + ((w->buffer)?(uintptr_t)w->buffer->data:0));
+-            if(dirty || v->size!=w->size || v->type!=w->type || v->normalized!=w->normalized 
++            if(dirty || v->size!=w->size || v->type!=w->type || v->normalized!=w->normalized
+                 || v->stride!=w->stride || v->buffer!=w->buffer || (w->real_buffer==0 && v->pointer!=ptr)
+-                || v->real_buffer!=w->real_buffer || (w->real_buffer!=0 && v->real_pointer != w->real_pointer) 
+-                || w->real_buffer!=glstate->bind_buffer.array) {
++                || v->real_buffer!=w->real_buffer || (w->real_buffer!=0 && v->real_pointer != w->real_pointer)
++                || w->real_buffer!=glstate->bind_buffer.array
++#ifdef __EMSCRIPTEN__
++                // Emscripten's FULL_ES2 client-array emulation redirects the
++                // real attrib binding to per-draw temp VBOs, so a cached
++                // "same pointer" does not match actual GL state: client-array
++                // attribs must be re-issued on every draw.
++                || (w->real_buffer==0)
++#endif
++                ) {
+                 if((w->size==GL_BGRA || w->type==GL_DOUBLE) && scratch->size<8) { 
+                     // need to adjust, so first need the min/max (a shame as I already must have that somewhere)
+                     int imin, imax;
+@@ -1503,6 +1511,49 @@ void realize_glenv(int ispoint, int first, int count, GLenum type, const void* i
+                     v->buffer = w->buffer; // buffer is unused here
+                 }
+                 DBG(printf("using Buffer %d\n", v->real_buffer);)
++#ifdef __EMSCRIPTEN__
++                // WebGL cannot source vertex attribs from client memory, and
++                // Emscripten's FULL_ES2 client-array emulation interacts
++                // badly with gl4es' state tracking. Stream client arrays into
++                // real VBOs here instead (range derived from the indices).
++                if(v->real_buffer==0 && v->pointer && !v->integer) {
++                    static GLuint etl_streamvbo[32] = {0};
++                    GLsizei vmax;
++                    LOAD_GLES(glGenBuffers);
++                    LOAD_GLES(glBufferData);
++                    if(type==0) {
++                        vmax = first + count - 1;
++                    } else {
++                        GLsizei vmax2 = 0, vmin2 = 0;
++                        if(type==GL_UNSIGNED_INT)
++                            getminmax_indices_ui((const GLuint*)indices, &vmax2, &vmin2, count);
++                        else
++                            getminmax_indices_us((const GLushort*)indices, &vmax2, &vmin2, count);
++                        vmax = vmax2;
++                    }
++                    {
++                        int rstride = v->stride ? v->stride : gl_sizeof(v->type)*v->size;
++                        size_t len = (size_t)(vmax + 1) * rstride;
++                        if(!etl_streamvbo[i])
++                            gles_glGenBuffers(1, &etl_streamvbo[i]);
++                        bindBuffer(GL_ARRAY_BUFFER, etl_streamvbo[i]);
++                        gles_glBufferData(GL_ARRAY_BUFFER, len, v->pointer, GL_STREAM_DRAW);
++                        gles_glVertexAttribPointer(i, v->size, v->type, v->normalized, v->stride, 0);
++                    }
++                } else {
++                bindBuffer(GL_ARRAY_BUFFER, v->real_buffer);
++
++                if (v->integer) {
++                    if(gles_glVertexAttribIPointer)
++                        gles_glVertexAttribIPointer(i, v->size, v->type, v->stride, v->pointer);
++                    else
++                        gles_glVertexAttribPointer(i, v->size, v->type, 0, v->stride, v->pointer);
++                }
++                else {
++                    gles_glVertexAttribPointer(i, v->size, v->type, v->normalized, v->stride, v->pointer);
++                }
++                }
++#else
+                 bindBuffer(GL_ARRAY_BUFFER, v->real_buffer);
+ 
+                 if (v->integer) {
+@@ -1516,6 +1567,7 @@ void realize_glenv(int ispoint, int first, int count, GLenum type, const void* i
+                     gles_glVertexAttribPointer(i, v->size, v->type, v->normalized, v->stride, v->pointer);
+                     DBG(printf("glVertexAttribPointer(%d, %d, %s, %d, %d, %p)\n", i, v->size, PrintEnum(v->type), v->normalized, v->stride, v->pointer);)
+                 }
++#endif
+             }
+         } else {
+             // single value case
