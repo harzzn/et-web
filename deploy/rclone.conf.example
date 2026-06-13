@@ -1,0 +1,18 @@
+# rclone remote for uploading paks to the Cloudflare R2 bucket.
+# Copy the [r2] section into ~/.config/rclone/rclone.conf and fill in:
+#   - account_id:        Cloudflare account id
+#   - access_key_id /    an R2 API token's S3 credentials
+#     secret_access_key  (Cloudflare dashboard -> R2 -> Manage API tokens,
+#                         or the keys exported from Pulumi config)
+#
+# Then: R2_REMOTE=r2:et-assets deploy/release.sh
+
+[r2]
+type = s3
+provider = Cloudflare
+account_id = YOUR_CF_ACCOUNT_ID
+access_key_id = YOUR_R2_ACCESS_KEY_ID
+secret_access_key = YOUR_R2_SECRET_ACCESS_KEY
+endpoint = https://YOUR_CF_ACCOUNT_ID.r2.cloudflarestorage.com
+acl = private
+no_check_bucket = true

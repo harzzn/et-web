@@ -169,9 +169,14 @@ function startET(extraArgs) {
   if (started) return;
   started = true;
 
+  const cfg = window.ET_CONFIG || {};
+  // override the WebSocket tunnel host (e.g. grey-cloud net.et.helja.la);
+  // empty -> the engine's same-origin default in net_web_tunnel.c
+  const wsArgs = cfg.wsUrl ? ['+set', 'net_wsUrl', cfg.wsUrl] : [];
+
   const urlArgs = (new URLSearchParams(location.search).get('args') || '')
     .split(' ').filter(Boolean);
-  Module.arguments = BASE_ARGS.concat(extraArgs || [], urlArgs);
+  Module.arguments = BASE_ARGS.concat(wsArgs, extraArgs || [], urlArgs);
 
   document.body.classList.add('playing');
   setStatus('preparing…');

@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 # Stage the web client for local serving: link build artifacts + assets into
 # web/ and generate manifest.json. Run after every build.
+#
+# ASSET_BASE controls where the manifest tells the client to fetch paks:
+#   unset / empty  -> "files/" (same origin, local dev; default)
+#   https://.../   -> a CDN/R2 base, e.g. ASSET_BASE=https://assets.et.helja.la/
+# The trailing slash is normalized. The local files/ symlinks are always
+# created so 'rclone sync web/files/ r2:...' has something to upload.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WEB="$ROOT/web"
 BUILD="$ROOT/build/web"
 ASSETS="$ROOT/assets"
+
+ASSET_BASE="${ASSET_BASE:-files/}"
+case "$ASSET_BASE" in */) ;; *) ASSET_BASE="$ASSET_BASE/" ;; esac
 
 ln -sf "$BUILD/etl"      "$WEB/etl.js"
 ln -sf "$BUILD/etl.wasm" "$WEB/etl.wasm"
@@ -31,7 +40,7 @@ ln -sf "$BUILD/legacy/qagame.mp.wasm32.wasm" "$WEB/files/legacy/qagame.mp.wasm32
     size=$(stat -Lf%z "$f" 2>/dev/null || stat -Lc%s "$f")
     [ $first -eq 1 ] || echo ','
     first=0
-    printf '  { "path": "%s", "url": "files/%s", "size": %s }' "$rel" "$rel" "$size"
+    printf '  { "path": "%s", "url": "%s%s", "size": %s }' "$rel" "$ASSET_BASE" "$rel" "$size"
   done
   echo ''
   echo '] }'
