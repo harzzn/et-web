@@ -38,12 +38,14 @@ WS_URL="${WS_URL:-}"               # empty -> engine same-origin default
 GAME_SERVER="${GAME_SERVER:-127.0.0.1:27960}"
 ASSET_BASE="${ASSET_BASE%/}"       # normalize (we add the slash)
 
-# 1. build the wasm client (unless reusing)
+# 1. build the wasm client + game modules (unless reusing). Build ALL targets,
+#    not just etl: the legacy_*.pk3 (cgame/ui) we ship to R2 + the server must
+#    be rebuilt too when the mod changes, else a stale pk3 goes out.
 if [ "${SKIP_BUILD:-0}" != "1" ]; then
-  echo "== building wasm client =="
+  echo "== building wasm client + mods =="
   # shellcheck disable=SC1091
   source tools/emsdk/emsdk_env.sh >/dev/null 2>&1 || true
-  cmake --build build/web -j"$(getconf _NPROCESSORS_ONLN)" --target etl
+  cmake --build build/web -j"$(getconf _NPROCESSORS_ONLN)"
 fi
 
 # 2. stage with the production asset base baked into manifest.json
@@ -76,6 +78,21 @@ rsync -avL \
   web/index.html web/boot.js web/etl.js web/etl.wasm web/manifest.json \
   "etweb@${SSH_TARGET}:/opt/et-web/web/"
 rsync -av "$PROD_CONFIG" "etweb@${SSH_TARGET}:/opt/et-web/web/config.js"
+
+# 6. legacy mod pk3 -> the server's mod dir. This is the SAME artifact uploaded
+#    to R2 in step 4, so the server and the browser clients run a byte-identical
+#    mod (the native build's qagame.so, installed by box-setup, is from the same
+#    commit). Restart etlded only when the pk3 actually changed, so shell-only
+#    releases don't kick connected players. (box-setup leaves etlded enabled but
+#    not started; the first release here is what brings it up.)
+echo "== shipping legacy mod pk3 to $SSH_TARGET =="
+if rsync -aLi web/files/legacy/legacy_*.pk3 \
+     "etweb@${SSH_TARGET}:/opt/et-web/server/legacy/" | grep -q 'legacy_'; then
+  echo "   mod pk3 changed -> (re)starting etlded"
+  ssh "root@${SSH_TARGET}" systemctl restart etlded
+else
+  echo "   mod pk3 unchanged -> leaving etlded as-is"
+fi
 
 echo
 echo "released. hard-refresh the site (manifest + etl.js are no-cache)."

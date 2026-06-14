@@ -59,6 +59,8 @@ else
   git clone -q -b "$ETLEGACY_BRANCH" "$ETLEGACY_REPO" "$ET_ROOT/src"
 fi
 git -C "$ET_ROOT/src" checkout -q "${ETLEGACY_SHA:-origin/$ETLEGACY_BRANCH}"
+# -DBUNDLED_LIBS=ON needs etlegacy's bundled-libs git submodule (SDL, curl, ...).
+git -C "$ET_ROOT/src" submodule update --init --recursive
 if [ -d "$ET_ROOT/tools/gl4es/.git" ]; then
   git -C "$ET_ROOT/tools/gl4es" fetch -q origin "$GL4ES_BRANCH"
 else
@@ -82,7 +84,11 @@ echo "== server runtime =="
 mkdir -p "$ET_ROOT/server/etmain" "$ET_ROOT/server/legacy" "$ET_ROOT/server/home"
 cp "$ET_ROOT/build-server/etlded" "$ET_ROOT/server/"
 cp "$ET_ROOT"/build-server/legacy/qagame.mp.*.so "$ET_ROOT/server/legacy/"
-ln -f "$ET_ROOT"/build-server/legacy/legacy_*.pk3 "$ET_ROOT/server/legacy/"
+# NOTE: the legacy_*.pk3 (cgame/ui + mod media) is deliberately NOT taken from
+# this native build. It must be byte-identical to the WASM pk3 browser clients
+# download from R2, or protocol/sv_pure checksums diverge. deploy/release.sh
+# ships that same pk3 here (and to R2). Until it does, etlded has no mod and is
+# enabled-but-not-started (see the systemd step below).
 # etmain paks (not in any repo - licensing) from the etlegacy mirror
 for f in mp_bin pak0 pak1 pak2; do
   [ -f "$ET_ROOT/server/etmain/$f.pk3" ] || \
@@ -146,9 +152,13 @@ UNIT
 mkdir -p "$ET_ROOT/web"
 chown -R etweb:etweb "$ET_ROOT"
 systemctl daemon-reload
-systemctl enable --now etlded et-proxy
+# etlded needs the legacy mod pk3 that release.sh ships - enable it for boot
+# but don't start it yet (it would crash-loop without the mod). Proxy + Caddy
+# can come up now; release.sh starts etlded once the pk3 is in place.
+systemctl enable etlded
+systemctl enable --now et-proxy
 systemctl reload caddy || systemctl restart caddy
 
 echo
-echo "box-setup done (built $BUILT_SHA). server + proxy + caddy up."
-echo "now push the client: deploy/release.sh  (shell -> box, paks -> R2)"
+echo "box-setup done (built $BUILT_SHA). proxy + caddy up; etlded enabled, awaiting the mod pk3."
+echo "now run deploy/release.sh - it ships the legacy pk3 + web shell and starts etlded."
