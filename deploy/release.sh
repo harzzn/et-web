@@ -9,10 +9,12 @@
 #   - emsdk activated, gl4es built (see top-level README build steps)
 #   - rclone reachable, R2 creds in env (RCLONE_CONFIG_R2_* - see
 #     deploy/rclone.conf.example); never written to disk
-#   - SSH to the box as etweb@<BOX_IP> (run from an allowlisted IP)
+#   - SSH to the box as etweb@<SSH_TARGET> (a Tailscale hostname, a normal
+#     SSH host alias, or an IP)
 #
 # Env:
-#   BOX_IP        box for the shell + game server                  (required)
+#   SSH_TARGET    box host for the shell + game server (Tailscale name / host / IP)  (required)
+#   BOX_IP        deprecated alias for SSH_TARGET                                (optional)
 #   ASSET_BASE    public base URL of the paks (e.g. https://assets.example.com)  (required)
 #   R2_REMOTE     rclone remote:bucket for paks (e.g. r2:et-assets)              (required)
 #   WS_URL        socket override; EMPTY -> same-origin wss://<host>/net default (optional)
@@ -28,7 +30,8 @@ cd "$ROOT"
 # shellcheck disable=SC1091
 [ -f deploy/deploy.env ] && . deploy/deploy.env
 
-: "${BOX_IP:?set BOX_IP=<box ip>}"
+SSH_TARGET="${SSH_TARGET:-${BOX_IP:-}}"
+: "${SSH_TARGET:?set SSH_TARGET=<box host: tailscale name, ssh alias, or ip>}"
 : "${ASSET_BASE:?set ASSET_BASE=<public pak base url>}"
 : "${R2_REMOTE:?set R2_REMOTE=<rclone remote:bucket>}"
 WS_URL="${WS_URL:-}"               # empty -> engine same-origin default
@@ -68,12 +71,12 @@ rclone sync -L --transfers 4 --s3-no-check-bucket \
   web/files/ "$R2_REMOTE/"
 
 # 5. shell + manifest -> the box (tiny; -L resolves etl.js/wasm symlinks)
-echo "== shipping shell to $BOX_IP =="
+echo "== shipping shell to $SSH_TARGET =="
 rsync -avL \
   web/index.html web/boot.js web/etl.js web/etl.wasm web/manifest.json \
-  "etweb@${BOX_IP}:/opt/et-web/web/"
-rsync -av "$PROD_CONFIG" "etweb@${BOX_IP}:/opt/et-web/web/config.js"
+  "etweb@${SSH_TARGET}:/opt/et-web/web/"
+rsync -av "$PROD_CONFIG" "etweb@${SSH_TARGET}:/opt/et-web/web/config.js"
 
 echo
-echo "released. open https://et.helja.la (hard-refresh; manifest is no-cache)"
-echo "if you set long browser TTLs, purge the CF cache for et.helja.la/manifest.json + /etl.js"
+echo "released. hard-refresh the site (manifest + etl.js are no-cache)."
+echo "if you set long browser TTLs, purge the CDN cache for /manifest.json + /etl.js"

@@ -7,15 +7,15 @@
 # caller (e.g. a helja.la wrapper via `chamber exec`) supplies everything via
 # env. Run AS ROOT on the box, e.g. from the deploy machine:
 #
-#   ssh root@$BOX_IP ETLEGACY_SHA=... ET_HOST=... RCONPASSWORD=... \
+#   ssh root@$SSH_TARGET ETLEGACY_SHA=... RCONPASSWORD=... \
 #       'bash -s' < deploy/box-setup.sh
 #
-# Expects (rsync'd to $DEPLOY_DIR beforehand, or fetched - see RAW_BASE):
+# Expects (rsync'd to $DEPLOY_DIR beforehand, or fetched from the public repo):
 #   proxy.js                the ws<->udp proxy
-# Origin CA cert is placed out of band at $TLS_DIR/origin.{pem,key}.
+#   Caddyfile               plain local-HTTP origin (public TLS is handled by
+#                           whatever fronts the box - tunnel/proxy/etc.)
 #
 # Env:
-#   ET_HOST         vhost Caddy serves (e.g. et.example.com)        (required)
 #   RCONPASSWORD    server rcon password                            (required)
 #   ETLEGACY_REPO   default https://github.com/harzzn/etlegacy
 #   ETLEGACY_BRANCH default web
@@ -25,13 +25,11 @@
 #   GL4ES_BRANCH    default etweb
 #   GL4ES_SHA       default branch HEAD
 #   ET_ROOT         default /opt/et-web
-#   TLS_DIR         default $ET_ROOT/tls   (origin.pem / origin.key live here)
 #   SV_HOSTNAME     default "ET Web"
 #   SV_MAXCLIENTS   default 24
 #   START_MAP       default radar
 set -euo pipefail
 
-ET_HOST="${ET_HOST:?set ET_HOST=<vhost, e.g. et.example.com>}"
 RCONPASSWORD="${RCONPASSWORD:?set RCONPASSWORD}"
 ETLEGACY_REPO="${ETLEGACY_REPO:-https://github.com/harzzn/etlegacy}"
 ETLEGACY_BRANCH="${ETLEGACY_BRANCH:-web}"
@@ -40,7 +38,6 @@ GL4ES_REPO="${GL4ES_REPO:-https://github.com/harzzn/gl4es}"
 GL4ES_BRANCH="${GL4ES_BRANCH:-etweb}"
 GL4ES_SHA="${GL4ES_SHA:-}"
 ET_ROOT="${ET_ROOT:-/opt/et-web}"
-TLS_DIR="${TLS_DIR:-$ET_ROOT/tls}"
 DEPLOY_DIR="${DEPLOY_DIR:-$ET_ROOT/deploy}"
 SV_HOSTNAME="${SV_HOSTNAME:-ET Web}"
 SV_MAXCLIENTS="${SV_MAXCLIENTS:-24}"
@@ -105,15 +102,8 @@ mkdir -p "$ET_ROOT/proxy"
   || curl -sfo "$ET_ROOT/proxy/proxy.js" "https://raw.githubusercontent.com/harzzn/et-web/main/tools/proxy/proxy.js"
 ( cd "$ET_ROOT/proxy" && [ -f package.json ] || npm init -y >/dev/null; npm i --omit=dev ws >/dev/null )
 
-echo "== caddy ($ET_HOST, origin CA tls) =="
-mkdir -p "$TLS_DIR"
-if [ ! -s "$TLS_DIR/origin.pem" ] || [ ! -s "$TLS_DIR/origin.key" ]; then
-  echo "WARNING: $TLS_DIR/origin.{pem,key} missing - place the Cloudflare Origin"
-  echo "         CA cert there (root:caddy 0640 key) or Caddy will fail to serve TLS."
-fi
-chgrp -R caddy "$TLS_DIR" 2>/dev/null || true
-chmod 0640 "$TLS_DIR"/origin.key 2>/dev/null || true
-sed "s/{ET_HOST}/$ET_HOST/g; s#{TLS_DIR}#$TLS_DIR#g" "$DEPLOY_DIR/Caddyfile" > /etc/caddy/Caddyfile
+echo "== caddy (plain local HTTP; public TLS handled by the fronting layer) =="
+cp "$DEPLOY_DIR/Caddyfile" /etc/caddy/Caddyfile
 
 echo "== systemd units =="
 cat > /etc/systemd/system/etlded.service <<UNIT

@@ -1,20 +1,20 @@
-# Caddy config template for the ET:Legacy web port.
-# box-setup.sh substitutes {ET_HOST} and {TLS_DIR}. No secrets here - the cert
-# CONTENT lives at {TLS_DIR}/origin.{pem,key} (placed out of band); these are
-# only paths.
+# Caddy config for the ET:Legacy web port — plain local HTTP origin.
 #
-# Origin TLS via a Cloudflare Origin CA cert: the host is Cloudflare-proxied
-# (orange cloud) terminating client TLS, and this serves the CF->origin hop on
-# 443. Used because port 80 (HTTP-01) and the caddy-dns plugin (DNS-01) are
-# unavailable. Set the host's Cloudflare SSL mode to Full (Strict).
+# Public TLS is handled OUTSIDE this repo by whatever fronts the box
+# (Cloudflare Tunnel, a reverse proxy, etc.). Caddy only serves the shell +
+# the /net WebSocket on localhost:80; the fronting layer maps a public
+# hostname to it. No certs, no open inbound ports here.
+#
+# For a direct-public single box instead (no fronting layer), replace ":80"
+# with your hostname so Caddy auto-provisions TLS (needs port 80/443 reachable).
 
-{ET_HOST} {
+:80 {
 	root * /opt/et-web/web
 	file_server
 	encode zstd gzip
 
-	# game socket: same-origin wss://{ET_HOST}/net -> ws<->udp proxy
-	# (matches net_web_tunnel.c's HTTPS default; no grey-cloud record needed)
+	# game socket: same-origin /net -> ws<->udp proxy
+	# (matches net_web_tunnel.c's same-origin default)
 	handle /net {
 		reverse_proxy 127.0.0.1:27970
 	}
@@ -24,6 +24,4 @@
 	header @big Cache-Control "public, max-age=604800"
 	header /manifest.json Cache-Control "no-cache"
 	header /etl.js Cache-Control "no-cache"
-
-	tls {TLS_DIR}/origin.pem {TLS_DIR}/origin.key
 }
