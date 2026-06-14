@@ -1,47 +1,60 @@
-# ET: Legacy — Web Port
+# ET: Legacy Web
 
-Wolfenstein: Enemy Territory (via ET: Legacy) compiled to WebAssembly,
-running in the browser. **Status: Phase 3 milestone reached** — the browser
-client connects to a NATIVE dedicated server (etlded) through a
-WebSocket↔UDP proxy: full handshake, gamestate, ClientBegin, live snapshot
-rendering. Also working: in-browser local listen server (Phase 2), menu +
-profile UI (Phase 1).
+**Wolfenstein: Enemy Territory** — the free 2003 multiplayer WWII shooter —
+running in your browser, no install. This is the real
+[ET: Legacy](https://www.etlegacy.com) engine (the actively-maintained
+successor to id Software's id Tech 3 codebase) compiled to WebAssembly: the
+same game, the same netcode, rendered through WebGL and played against a
+standard dedicated server over a WebSocket tunnel.
 
-Quick start: `./scripts/run-stack.sh radar` then open
-`http://localhost:8666/?args=%2Bconnect%20127.0.0.1%3A27960`
+**Play:** [et.helja.la](https://et.helja.la) — first visit downloads ~230 MB of
+game data once, then it's cached in your browser.
 
-## Source & licensing
+> Non-commercial fan project. Not affiliated with Splash Damage, id Software,
+> ZeniMax or Microsoft. See [Licensing](#licensing).
 
-- Engine: [ET: Legacy](https://www.etlegacy.com) fork, branch `web` —
-  [github.com/harzzn/etlegacy](https://github.com/harzzn/etlegacy/tree/web).
-  **GPLv3** (id Software's 2010 source release + id's additional terms).
-  Serving `etl.wasm` is conveying a GPL binary: these repos ARE the
-  corresponding source offer. Keep them public and in sync with deploys.
-- GL translation: [gl4es](https://github.com/ptitSeb/gl4es) fork, branch
-  `etweb` — [github.com/harzzn/gl4es](https://github.com/harzzn/gl4es/tree/etweb) (MIT).
-- This repo (shell, proxy, deploy tooling): GPLv3 to match.
-- Game data (`pak0.pk3` etc.) is NOT included and NOT GPL: it remains the
-  property of id Software / ZeniMax / Microsoft, distributed free of charge
-  since 2003 under the W:ET EULA (non-commercial redistribution of intact
-  data is long-established community practice). Fetch from
-  `mirror.etlegacy.com/etmain/` into `assets/etmain/`.
-- Non-commercial fan project; not affiliated with Splash Damage, id
-  Software, ZeniMax or Microsoft.
+## What it does
 
-## Layout
+- Runs the genuine ET: Legacy client in the browser — menu, 3D world, HUD,
+  sound — at native-ish frame rates on a desktop GPU.
+- **Multiplayer** against an ordinary `etlded` dedicated server. Browsers
+  can't send UDP, so a tiny WebSocket↔UDP proxy bridges the gap; the server is
+  unmodified and can host browser and native desktop players in the same match.
+- **Offline practice** — the client embeds a listen server, so you can spawn
+  into a map with no network at all.
+- **One-time download** — game data is fetched once and persisted in the
+  browser (IndexedDB); later visits start immediately.
 
-| Path | What |
-|---|---|
-| `src/` | ET: Legacy clone, branch `web` carries the Emscripten patches |
-| `tools/emsdk/` | Emscripten SDK (latest, activated) |
-| `tools/gl4es/` | gl4es clone, branch `etweb` carries WebGL fixes (also in `patches/`) |
-| `tools/headless/` | puppeteer-core harness: boots the page, captures console + screenshots |
-| `assets/etmain/` | pak0/1/2 + mp_bin (freely redistributable, from mirror.etlegacy.com) |
-| `web/` | index.html + boot.js shell; `stage-web.sh` links build artifacts here |
-| `patches/` | exported gl4es diff for reproducibility |
-| `build/web/` | CMake build dir (client wasm + legacy mod side modules + mod pk3) |
+## How it works
+
+A native FPS engine wasn't built for the web, so the interesting parts are the
+seams:
+
+- **Rendering** — the vanilla OpenGL 1.x renderer runs on
+  [gl4es](https://github.com/ptitSeb/gl4es), which translates desktop GL to the
+  GLES2 calls Emscripten maps onto WebGL2 (`-sFULL_ES2`, WebGL2 only). GLEW is
+  replaced by a small compatibility shim (`renderercommon/tr_gl4es_compat.h`).
+- **Game modules** — `cgame`/`ui` (and the listen server's `qagame`) are built
+  as Emscripten *side modules* and `dlopen`'d at runtime exactly like the native
+  `.so`/`.dll` mods, packed inside the standard `legacy` pk3.
+- **Main loop** — the blocking frame loop becomes
+  `emscripten_set_main_loop` (driven by `requestAnimationFrame`).
+- **Networking** — `src/sys/net_web_tunnel.c` funnels every engine datagram
+  through one binary WebSocket to a colocated proxy; incoming messages are
+  dispatched on the normal packet path. The client-side shim sits at the
+  `Sys_SendPacket`/`NET_Sleep` boundary, so the transport can later be swapped
+  for WebTransport without touching game code.
+- **Assets** — `boot.js` fetches the paks into the Emscripten filesystem
+  mounted on IndexedDB; the manifest carries sizes so cached files are skipped
+  and stale ones re-fetched.
+
+Several non-obvious WebGL/Emscripten issues had to be solved for any of this to
+draw a pixel — they're documented inline where fixed (search the engine fork's
+`web` branch for `__EMSCRIPTEN__`) and in [`patches/`](patches/).
 
 ## Build
+
+Requires the Emscripten SDK and CMake ≥ 4.3.3 (for Emscripten side modules).
 
 ```sh
 source tools/emsdk/emsdk_env.sh
@@ -52,8 +65,9 @@ emcmake cmake -B build-web -DCMAKE_BUILD_TYPE=Release -DSTATICLIB=ON \
   -DNOX11=ON -DNOEGL=ON -DNO_LOADER=ON -DNO_INIT_CONSTRUCTOR=ON \
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_C_FLAGS="-DDEFAULT_ES=2 -O3 -fPIC"
 cmake --build build-web -j8
+cd ../..
 
-# client + mods (note: cmake >= 4.3.3 required for emscripten side modules)
+# client + game modules
 emcmake cmake -S src -B build/web -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_SERVER=OFF -DBUILD_CLIENT=ON -DBUILD_MOD=ON \
   -DBUILD_CLIENT_MOD=ON -DBUILD_SERVER_MOD=ON \
@@ -67,67 +81,73 @@ emcmake cmake -S src -B build/web -DCMAKE_BUILD_TYPE=Release \
   -DFEATURE_OMNIBOT=OFF -DINSTALL_EXTRA=OFF -DENABLE_MULTI_BUILD=OFF
 cmake --build build/web -j8
 
-# IMPORTANT: the etl link does not depend on tools/gl4es/lib/libGL.a;
-# after rebuilding gl4es, force a relink:
+# the etl link doesn't depend on libGL.a, so after rebuilding gl4es force a relink:
 #   rm build/web/etl build/web/etl.wasm && cmake --build build/web -j8 --target etl
 
-./scripts/stage-web.sh
+./scripts/stage-web.sh   # links artifacts into web/ and writes manifest.json
 ```
 
-## Run
+You also need the game data, which is **not** included (see Licensing). Fetch
+`mp_bin.pk3` and `pak0/1/2.pk3` from `mirror.etlegacy.com/etmain/` into
+`assets/etmain/` before staging.
+
+## Run locally
+
+The full local stack (dedicated server + proxy + web host):
+
+```sh
+./scripts/run-stack.sh radar
+# then open http://localhost:8666
+```
+
+Or just the web client served statically:
 
 ```sh
 cd web && python3 -m http.server 8666
-# open http://localhost:8666/
 ```
 
-Headless smoke test (Chrome required):
+There's a headless smoke-test harness (needs Chrome) under `tools/headless/`
+that boots the page, drives input, and captures screenshots.
 
-```sh
-cd tools/headless && ET_SECS=40 node boot-test.js   # screenshot at /tmp/etweb-shot.png
-```
+## Deploy
 
-## Architecture notes (what made this work)
+The box serves plain local HTTP; the public hostname and TLS come from whatever
+fronts it (a tunnel, a reverse proxy, or Caddy's own auto-TLS for a direct
+self-host). Everything is parameterized — no host, secret, or account detail
+lives in this repo. See [`deploy/README.md`](deploy/README.md).
 
-- **GL**: vanilla renderer1 (GL1.x) → gl4es → GLES2 → WebGL2 (`-sFULL_ES2`,
-  `MIN/MAX_WEBGL_VERSION=2`). GLEW replaced by `tr_gl4es_compat.h`.
-- **Three gl4es/WebGL landmines fixed** (all invisible-failure modes):
-  1. Emscripten's `eglGetProcAddress` returns *non-emulated* GL functions
-     (precompiled system lib without FULL_ES2) — gl4es must be fed the
-     statically-linked symbols (`sdl_gl4es_procs.c`).
-  2. WebGL can't read vertex attribs from client memory; gl4es now streams
-     client arrays into VBOs per draw (gl4es `fpe.c` patch).
-  3. vid_restart reuses the same WebGL context; binding shadows and
-     attrib-enable mirrors desync across it (sdl_glimp resync +
-     gl4es `buffers.c` patch). Don't touch attrib enables at restart.
-- **Mods**: cgame/ui are Emscripten side modules (`SIDE_MODULE=1`, PIC
-  everywhere, client is `MAIN_MODULE=1`), packed into the legacy pk3 and
-  extracted + dlopen'd at runtime exactly like native. `vmMain` is called
-  through a 13-arg signature on wasm (exact-match indirect calls).
-- **Indices**: ushort on Emscripten (`tr_local.h`), like the GLES renderer.
-- **Main loop**: `emscripten_set_main_loop` drives `Com_Frame` (rAF).
-- **Console**: `con_passive.c` (tty stdin polling deadlocks the event loop).
-- **FS**: paks fetched by `boot.js` into MEMFS under `/et`; `fs_homepath`
-  `/et/home`. IDBFS/OPFS persistence is still TODO.
+## Repository layout
 
-## Networking (Phase 3)
+| Path | What |
+|---|---|
+| `src/` | ET: Legacy engine fork (branch `web`) — the Emscripten patches |
+| `tools/gl4es/` | gl4es fork (branch `etweb`) — the WebGL fixes |
+| `tools/proxy/` | the WebSocket↔UDP proxy (`proxy.js`) |
+| `tools/headless/` | puppeteer-based smoke-test harness |
+| `web/` | the browser shell: landing page, `boot.js` loader, `config.js` |
+| `scripts/` | build staging + local run helpers |
+| `deploy/` | generic server-provisioning + release tooling |
+| `patches/` | exported gl4es diff for reproducibility |
+| `assets/etmain/` | game paks (you supply these; not in the repo) |
 
-- `src/sys/net_web_tunnel.c`: every outgoing engine datagram = one binary
-  WS message to the proxy; incoming messages dispatched via the normal
-  packet path from `NET_Sleep`. Single-tunnel model: incoming packets are
-  attributed to the last send destination, the proxy owns real addressing.
-  `net_wsUrl` cvar overrides the default `ws://<page-host>:27970`.
-- `tools/proxy/proxy.js`: one UDP socket per WS client, fixed UDP target
-  (no open relay), idle timeout, client cap. Colocate with etlded.
-- Native server: `build/native-server/etlded`, runtime dir `server/`
-  (NB: pk3s must be hardlinks/copies — the engine skips symlinked pk3s).
+## Licensing
 
-## Next
+- **Engine** — [ET: Legacy](https://github.com/harzzn/etlegacy/tree/web) fork
+  (branch `web`): **GPLv3**, from id Software's 2010 source release plus id's
+  additional terms. Serving `etl.wasm` conveys a GPL binary, so these source
+  repos are the corresponding-source offer.
+- **GL translation** — [gl4es](https://github.com/harzzn/gl4es/tree/etweb) fork
+  (branch `etweb`): MIT.
+- **This repo** (shell, proxy, deploy tooling): GPLv3 to match.
+- **Game data** (`pak0.pk3` etc.) is **not** included and **not** GPL — it
+  remains the property of id Software / ZeniMax / Microsoft, distributed free of
+  charge since 2003 under the W:ET EULA. Non-commercial redistribution of the
+  intact data is long-established community practice.
 
-- Interactive online playtest; join team, latency feel via proxy
-- WebTransport upgrade beneath the same tunnel API (WS stays as fallback)
-- Server browser / multi-target addressing in tunnel frame format
-- Persistence: IDBFS or OPFS for /et/home + pak cache (currently re-downloads)
-- Perf pass: in-map r_speeds, SIMD build, lazy per-map paks
-- Cosmetics: benign generateMipmap/texParameter warnings at init;
-  'sound muted' until focus; 'unknown cmd vdr' from server
+## Credits
+
+Built on [ET: Legacy](https://www.etlegacy.com) and
+[gl4es](https://github.com/ptitSeb/gl4es). The browser-port approach was
+demonstrated for Return to Castle Wolfenstein at
+[rtcw.pieter.com](https://rtcw.pieter.com). Hosted by
+[Harri Heljala](https://helja.la).

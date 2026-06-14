@@ -10,6 +10,7 @@ web/files/
 web/manifest.json
 tools/proxy/node_modules/
 tools/proxy/package-lock.json
+tools/headless/package-lock.json
 server/
 
 # deploy secrets / specifics — real values live in the helja.la repo + chamber
