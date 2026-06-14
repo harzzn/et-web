@@ -1,24 +1,29 @@
-# Caddy config for the ET:Legacy web port.
-# Replace play.example.com with your domain; Caddy handles TLS automatically.
+# Caddy config template for the ET:Legacy web port.
+# box-setup.sh substitutes {ET_HOST} and {TLS_DIR}. No secrets here - the cert
+# CONTENT lives at {TLS_DIR}/origin.{pem,key} (placed out of band); these are
+# only paths.
+#
+# Origin TLS via a Cloudflare Origin CA cert: the host is Cloudflare-proxied
+# (orange cloud) terminating client TLS, and this serves the CF->origin hop on
+# 443. Used because port 80 (HTTP-01) and the caddy-dns plugin (DNS-01) are
+# unavailable. Set the host's Cloudflare SSL mode to Full (Strict).
 
-play.example.com {
-	# WebSocket tunnel -> ws<->udp proxy (the client defaults to
-	# wss://<host>/net on https pages, see net_web_tunnel.c)
+{ET_HOST} {
+	root * /opt/et-web/web
+	file_server
+	encode zstd gzip
+
+	# game socket: same-origin wss://{ET_HOST}/net -> ws<->udp proxy
+	# (matches net_web_tunnel.c's HTTPS default; no grey-cloud record needed)
 	handle /net {
 		reverse_proxy 127.0.0.1:27970
 	}
 
-	# static web client + game data
-	handle {
-		root * /opt/et-web/web
-		file_server
-		encode zstd gzip
+	# big immutable artifacts cache hard; manifest + js loader revalidate
+	@big path *.pk3 *.wasm
+	header @big Cache-Control "public, max-age=604800"
+	header /manifest.json Cache-Control "no-cache"
+	header /etl.js Cache-Control "no-cache"
 
-		# pk3s and wasm are immutable-ish and huge: cache hard.
-		# (manifest.json carries sizes; boot.js re-fetches on mismatch)
-		@bigfiles path *.pk3 *.wasm
-		header @bigfiles Cache-Control "public, max-age=604800"
-		header /manifest.json Cache-Control "no-cache"
-		header /etl.js Cache-Control "no-cache"
-	}
+	tls {TLS_DIR}/origin.pem {TLS_DIR}/origin.key
 }

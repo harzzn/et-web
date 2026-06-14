@@ -11,3 +11,8 @@ web/manifest.json
 tools/proxy/node_modules/
 tools/proxy/package-lock.json
 server/
+
+# deploy secrets / specifics — real values live in the helja.la repo + chamber
+deploy/deploy.env
+deploy/*.pem
+deploy/*.key

@@ -1,30 +1,39 @@
 #!/usr/bin/env bash
 # Build + publish a release: wasm client -> box, paks -> R2.
 #
+# Generic + parameterized: all deployment specifics come from env (a private
+# wrapper - e.g. helja.la via `chamber exec` - supplies them). Nothing here is
+# host-specific; placeholders below are illustrative only.
+#
 # Prereqs:
 #   - emsdk activated, gl4es built (see top-level README build steps)
-#   - rclone configured with an R2 remote (see deploy/rclone.conf.example)
-#   - SSH access to the box as etweb@<BOX_IP>
+#   - rclone reachable, R2 creds in env (RCLONE_CONFIG_R2_* - see
+#     deploy/rclone.conf.example); never written to disk
+#   - SSH to the box as etweb@<BOX_IP> (run from an allowlisted IP)
 #
-# Env (override as needed):
-#   BOX_IP        target box for the shell + game server          (required)
-#   R2_REMOTE     rclone remote:bucket for paks   (default r2:et-assets)
-#   ASSET_BASE    public base URL of the paks     (default https://assets.et.helja.la)
-#   WS_URL        grey-cloud socket host          (default wss://net.et.helja.la/)
+# Env:
+#   BOX_IP        box for the shell + game server                  (required)
+#   ASSET_BASE    public base URL of the paks (e.g. https://assets.example.com)  (required)
+#   R2_REMOTE     rclone remote:bucket for paks (e.g. r2:et-assets)              (required)
+#   WS_URL        socket override; EMPTY -> same-origin wss://<host>/net default (optional)
 #   GAME_SERVER   engine-side connect token       (default 127.0.0.1:27960)
 #   SKIP_BUILD=1  reuse the existing build/web
 #
-# Usage: BOX_IP=1.2.3.4 deploy/release.sh
+# Convenience: a gitignored deploy/deploy.env is sourced if present.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-: "${BOX_IP:?set BOX_IP=<hetzner ip>}"
-R2_REMOTE="${R2_REMOTE:-r2:et-assets}"
-ASSET_BASE="${ASSET_BASE:-https://assets.et.helja.la}"
-WS_URL="${WS_URL:-wss://net.et.helja.la/}"
+# shellcheck disable=SC1091
+[ -f deploy/deploy.env ] && . deploy/deploy.env
+
+: "${BOX_IP:?set BOX_IP=<box ip>}"
+: "${ASSET_BASE:?set ASSET_BASE=<public pak base url>}"
+: "${R2_REMOTE:?set R2_REMOTE=<rclone remote:bucket>}"
+WS_URL="${WS_URL:-}"               # empty -> engine same-origin default
 GAME_SERVER="${GAME_SERVER:-127.0.0.1:27960}"
+ASSET_BASE="${ASSET_BASE%/}"       # normalize (we add the slash)
 
 # 1. build the wasm client (unless reusing)
 if [ "${SKIP_BUILD:-0}" != "1" ]; then

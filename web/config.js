@@ -7,9 +7,9 @@ window.ET_CONFIG = {
   server: '127.0.0.1:27960',
 
   // WebSocket tunnel endpoint. Empty -> client default
-  // (wss://<page-host>/net on https, ws://<host>:27970 on http).
-  // Production: the grey-cloud direct-to-box host, e.g.
-  //   'wss://net.et.helja.la/'
+  // (wss://<page-host>/net on https, ws://<host>:27970 on http), which is
+  // what the Cloudflare-proxied production setup uses. Only set this to
+  // override (e.g. a dedicated low-latency socket host).
   wsUrl: '',
 
   // Base URL the manifest's pak files are fetched from. Empty -> 'files/'

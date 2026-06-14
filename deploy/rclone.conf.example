@@ -1,18 +1,28 @@
-# rclone remote for uploading paks to the Cloudflare R2 bucket.
-# Copy the [r2] section into ~/.config/rclone/rclone.conf and fill in:
-#   - account_id:        Cloudflare account id
-#   - access_key_id /    an R2 API token's S3 credentials
-#     secret_access_key  (Cloudflare dashboard -> R2 -> Manage API tokens,
-#                         or the keys exported from Pulumi config)
+# R2 access for the pak upload (release.sh step 4). Prefer ENV VARS so the
+# secret never lands on disk - a private wrapper (e.g. helja.la via
+# `chamber exec`) exports these before calling release.sh:
 #
-# Then: R2_REMOTE=r2:et-assets deploy/release.sh
-
-[r2]
-type = s3
-provider = Cloudflare
-account_id = YOUR_CF_ACCOUNT_ID
-access_key_id = YOUR_R2_ACCESS_KEY_ID
-secret_access_key = YOUR_R2_SECRET_ACCESS_KEY
-endpoint = https://YOUR_CF_ACCOUNT_ID.r2.cloudflarestorage.com
-acl = private
-no_check_bucket = true
+#   export RCLONE_CONFIG_R2_TYPE=s3
+#   export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+#   export RCLONE_CONFIG_R2_ACCESS_KEY_ID=...       # from a CF R2 API token
+#   export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY=...
+#   export RCLONE_CONFIG_R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+#   export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+#   R2_REMOTE=r2:et-assets   ASSET_BASE=https://assets.example.com   BOX_IP=...  deploy/release.sh
+#
+# (The "r2" suffix in RCLONE_CONFIG_R2_* must match the remote name in
+# R2_REMOTE, i.e. "r2:".)
+#
+# Generate the R2 API token in the Cloudflare dashboard:
+#   R2 -> Manage R2 API Tokens -> Create (Object Read & Write on et-assets).
+#
+# If you'd rather use an on-disk config instead of env vars, the equivalent
+# ~/.config/rclone/rclone.conf section is:
+#
+#   [r2]
+#   type = s3
+#   provider = Cloudflare
+#   access_key_id = ...
+#   secret_access_key = ...
+#   endpoint = https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+#   no_check_bucket = true
